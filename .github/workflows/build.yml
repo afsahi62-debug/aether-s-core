@@ -6,6 +6,9 @@ on:
     branches: [ main ]
     paths: [ ".github/workflows/build.yml" ]
 
+permissions:
+  contents: write
+
 jobs:
   android:
     name: Build aether-android-arm64
@@ -70,3 +73,15 @@ jobs:
         with:
           name: aether-s-core-android-arm64
           path: dist
+
+      - name: Pack core zip
+        run: |
+          cd dist && zip -r ../aether-s-core-android-arm64.zip . && cd ..
+          ls -lh aether-s-core-android-arm64.zip
+
+      - name: Publish public release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: core-build-${{ github.run_number }}
+          name: Aether S Core build ${{ github.run_number }}
+          files: aether-s-core-android-arm64.zip
