@@ -2,6 +2,9 @@ name: Build Aether S Core (Android arm64)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths: [ ".github/workflows/build.yml" ]
 
 jobs:
   android:
@@ -16,21 +19,18 @@ jobs:
 
       - name: Apply Aether S speed patch (fast chained Psiphon)
         working-directory: src/aether
-        run: |
-          python3 - <<'PY'
-          p = 'src/psiphon.rs'
-          s = open(p, encoding='utf8').read()
-          old = '''    match (upstream.is_some(), chosen) {
-              (true, _) => {
-                  map.insert(
-                      "LimitTunnelProtocols".into(),
-                      serde_json::json!(chained_protocols(chosen)),
-                  );'''
-          new = '''    match (upstream.is_some(), chosen) {
-              (true, _) => {
-                  // Aether S core: behind an upstream tunnel, reachability is already
-                  // provided by the carrier, so the slow CDN-fronted Meek protocols
-                  // only cost throughput. Default the chained set to the direct
-                  // protocols; an explicit --psiphon-mode still wins.
-                  let chained = match chosen {
-                      Shape::Auto => chained_protocols(Shape::Direct),
+        run: python3 -c "import pathlib; p=pathlib.Path('src/psiphon.rs'); s=p.read_text(encoding='utf8'); old='        Shape::Auto => CHAINED_PROTOCOLS.to_vec(),'; new='        Shape::Auto => CHAINED_PROTOCOLS.iter().copied().filter(|name| !name.starts_with('+chr(39)+'F'+chr(39)+')).collect(),'; assert old in s, 'pattern not found'; p.write_text(s.replace(old, new, 1), encoding='utf8'); print('Aether S patch applied')"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+
