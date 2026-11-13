@@ -1,0 +1,36 @@
+name: Build Aether S Core (Android arm64)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  android:
+    name: Build aether-android-arm64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download upstream Aether v2.4.0 source
+        run: |
+          curl -fsSL -o src.tgz https://github.com/CluvexStudio/Aether/archive/refs/tags/v2.4.0.tar.gz
+          mkdir src && tar xzf src.tgz -C src --strip-components=1
+          ls src
+
+      - name: Apply Aether S speed patch (fast chained Psiphon)
+        working-directory: src/aether
+        run: |
+          python3 - <<'PY'
+          p = 'src/psiphon.rs'
+          s = open(p, encoding='utf8').read()
+          old = '''    match (upstream.is_some(), chosen) {
+              (true, _) => {
+                  map.insert(
+                      "LimitTunnelProtocols".into(),
+                      serde_json::json!(chained_protocols(chosen)),
+                  );'''
+          new = '''    match (upstream.is_some(), chosen) {
+              (true, _) => {
+                  // Aether S core: behind an upstream tunnel, reachability is already
+                  // provided by the carrier, so the slow CDN-fronted Meek protocols
+                  // only cost throughput. Default the chained set to the direct
+                  // protocols; an explicit --psiphon-mode still wins.
+                  let chained = match chosen {
+                      Shape::Auto => chained_protocols(Shape::Direct),
