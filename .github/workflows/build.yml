@@ -34,3 +34,39 @@ jobs:
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
 
+      - name: Install Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      - name: Build pluggable transports
+        working-directory: src/aether
+        run: bash ../pt-build.sh linux arm64 "$PWD/pt" "" "$PWD/LICENSES"
+
+      - name: Build psiphon
+        working-directory: src/aether
+        run: bash ../psiphon-build.sh linux arm64 "$PWD/pt" "" "$PWD/LICENSES"
+
+      - name: Build release binary (Aether S core)
+        working-directory: src/aether
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
+        run: cargo ndk -t arm64-v8a --platform 29 build --release --features tor
+
+      - name: Collect artifact
+        run: |
+          mkdir -p dist/pt
+          cp src/aether/target/aarch64-linux-android/release/aether dist/
+          cp -R src/aether/pt/. dist/pt/ || true
+          ls -lh dist dist/pt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aether-s-core-android-arm64
+          path: dist
